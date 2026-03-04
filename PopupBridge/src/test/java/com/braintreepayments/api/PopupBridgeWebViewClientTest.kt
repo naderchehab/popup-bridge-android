@@ -1,6 +1,7 @@
 package com.braintreepayments.api
 
 import android.webkit.WebView
+import com.braintreepayments.api.internal.isPayPalInstalled
 import com.braintreepayments.api.internal.isVenmoInstalled
 import io.mockk.every
 import io.mockk.mockk
@@ -59,6 +60,55 @@ class PopupBridgeWebViewClientTest {
         }
 
         unmockkAll()
+    }
+
+    @Test
+    fun `on page finished, when PayPal installed, isPayPalInstalled is set to true`() = runTest {
+        every { webView.context.isVenmoInstalled() } returns false
+        every { webView.context.isPayPalInstalled() } returns true
+
+        sut.onPageFinished(webView, "https://example.com")
+
+        verify {
+            webView.evaluateJavascript(withArg { javascriptString ->
+                assertEquals(getExpectedPayPalInstalledJavascript(true), javascriptString)
+            }, null)
+        }
+
+        unmockkAll()
+    }
+
+    @Test
+    fun `on page finished, when PayPal is not installed, isPayPalInstalled is set to false`() = runTest {
+        every { webView.context.isVenmoInstalled() } returns false
+        every { webView.context.isPayPalInstalled() } returns false
+
+        sut.onPageFinished(webView, "https://example.com")
+
+        verify {
+            webView.evaluateJavascript(withArg { javascriptString ->
+                assertEquals(getExpectedPayPalInstalledJavascript(false), javascriptString)
+            }, null)
+        }
+
+        unmockkAll()
+    }
+
+    private fun getExpectedPayPalInstalledJavascript(isPayPalInstalled: Boolean): String {
+        return String.format(
+            (""
+                + "function setPayPalInstalled() {"
+                + "    window.popupBridge.isPayPalInstalled = %s;"
+                + "}"
+                + ""
+                + "if (document.readyState === 'complete') {"
+                + "  setPayPalInstalled();"
+                + "} else {"
+                + "  window.addEventListener('load', function () {"
+                + "    setPayPalInstalled();"
+                + "  });"
+                + "}"), isPayPalInstalled
+        )
     }
 
     private fun getExpectedVenmoInstalledJavascript(isVenmoInstalled: Boolean): String {

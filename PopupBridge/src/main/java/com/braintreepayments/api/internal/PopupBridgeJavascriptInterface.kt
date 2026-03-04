@@ -13,6 +13,7 @@ internal class PopupBridgeJavascriptInterface(
 ) {
 
     var onOpen: ((url: String?) -> Unit)? = null
+    var onLaunchApp: ((url: String?) -> Unit)? = null
     var onSendMessage: ((messageName: String?, data: String?) -> Unit)? = null
 
     @get:JavascriptInterface
@@ -26,6 +27,11 @@ internal class PopupBridgeJavascriptInterface(
     @JavascriptInterface
     fun open(url: String?) {
         onOpen?.invoke(url)
+    }
+
+    @JavascriptInterface
+    fun launchApp(url: String?) {
+        onLaunchApp?.invoke(url)
     }
 
     @JavascriptInterface

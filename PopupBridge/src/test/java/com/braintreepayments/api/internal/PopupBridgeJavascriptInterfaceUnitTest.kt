@@ -35,6 +35,17 @@ class PopupBridgeJavascriptInterfaceUnitTest {
     }
 
     @Test
+    fun `when launchApp is invoked, onLaunchApp callback is called with url`() {
+        var capturedUrl: String? = null
+        subject.onLaunchApp = { url -> capturedUrl = url }
+
+        val testUrl = "https://www.paypal.com/app-switch-checkout?token=abc123"
+        subject.launchApp(testUrl)
+
+        assertEquals(testUrl, capturedUrl)
+    }
+
+    @Test
     fun `when sendMessage is invoked with messageName only, onSendMessage callback is invoked with messageName`() {
         var capturedMessageName: String? = null
         var capturedData: String? = "unexpected"

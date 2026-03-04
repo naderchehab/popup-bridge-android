@@ -7,6 +7,8 @@ import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_APP_LAUNCHED
+import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_APP_LAUNCH_FAILED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_CANCELED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_FAILED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_SUCCEEDED
@@ -95,6 +97,7 @@ class PopupBridgeClient @SuppressLint("SetJavaScriptEnabled") internal construct
 
         with(popupBridgeJavascriptInterface) {
             onOpen = { url -> openUrl(url) }
+            onLaunchApp = { url -> this@PopupBridgeClient.launchApp(url) }
             onSendMessage = { messageName, data ->
                 messageListener?.onMessageReceived(messageName, data)
             }
@@ -134,6 +137,19 @@ class PopupBridgeClient @SuppressLint("SetJavaScriptEnabled") internal construct
                 is BrowserSwitchFinalResult.NoResult -> runCanceledJavaScript()
             }
             isHandlingReturnToApp = false
+        }
+    }
+
+    private fun launchApp(url: String?) {
+        analyticsClient.sendEvent(PopupBridgeAnalytics.POPUP_BRIDGE_STARTED)
+        val activity = activityRef.get() ?: return
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+            activity.startActivity(intent)
+            analyticsClient.sendEvent(POPUP_BRIDGE_APP_LAUNCHED)
+        } catch (e: Exception) {
+            analyticsClient.sendEvent(POPUP_BRIDGE_APP_LAUNCH_FAILED)
+            runErrorJavaScript("new Error('Failed to launch app. ${e.localizedMessage}')")
         }
     }
 

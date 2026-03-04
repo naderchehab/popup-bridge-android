@@ -5,6 +5,8 @@ import android.net.Uri
 import android.webkit.WebView
 import androidx.activity.ComponentActivity
 import androidx.core.net.toUri
+import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_APP_LAUNCHED
+import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_APP_LAUNCH_FAILED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_CANCELED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_FAILED
 import com.braintreepayments.api.PopupBridgeAnalytics.POPUP_BRIDGE_STARTED
@@ -56,6 +58,7 @@ class PopupBridgeClientUnitTest {
     private val intent: Intent = mockk(relaxed = true)
     private val runnableSlot = slot<Runnable>()
     private val onOpenSlot = slot<(String?) -> Unit>()
+    private val onLaunchAppSlot = slot<(String?) -> Unit>()
     private val onSendMessageSlot = slot<(String?, String?) -> Unit>()
 
     private fun initializeClient(
@@ -66,6 +69,7 @@ class PopupBridgeClientUnitTest {
         every { webView.post(capture(runnableSlot)) } returns true
         coEvery { pendingRequestRepository.getPendingRequest() } returns pendingRequest
         every { popupBridgeJavascriptInterface.onOpen = capture(onOpenSlot) } returns Unit
+        every { popupBridgeJavascriptInterface.onLaunchApp = capture(onLaunchAppSlot) } returns Unit
         every { popupBridgeJavascriptInterface.onSendMessage = capture(onSendMessageSlot) } returns Unit
 
         additionalMocks()
@@ -378,6 +382,47 @@ class PopupBridgeClientUnitTest {
         onOpenSlot.captured.invoke(url)
 
         verify { navigationListener.onUrlOpened(url) }
+    }
+
+    @Test
+    fun `when onLaunchApp is called, activity startActivity is called with correct intent`() {
+        initializeClient()
+
+        val url = "https://www.paypal.com/app-switch-checkout?token=abc123"
+        onLaunchAppSlot.captured.invoke(url)
+
+        verify {
+            activityMock.startActivity(withArg { intent ->
+                assertEquals(Intent.ACTION_VIEW, intent.action)
+                assertEquals(Uri.parse(url), intent.data)
+            })
+        }
+    }
+
+    @Test
+    fun `when onLaunchApp is called, POPUP_BRIDGE_STARTED and POPUP_BRIDGE_APP_LAUNCHED analytics events are sent`() {
+        initializeClient()
+
+        onLaunchAppSlot.captured.invoke("https://www.paypal.com/app-switch-checkout?token=abc123")
+
+        verify { analyticsClient.sendEvent(POPUP_BRIDGE_STARTED) }
+        verify { analyticsClient.sendEvent(POPUP_BRIDGE_APP_LAUNCHED) }
+    }
+
+    @Test
+    fun `when onLaunchApp fails, POPUP_BRIDGE_APP_LAUNCH_FAILED analytics event is sent and error javascript is run`() {
+        every { activityMock.startActivity(any()) } throws android.content.ActivityNotFoundException("No activity found")
+        initializeClient()
+
+        onLaunchAppSlot.captured.invoke("https://www.paypal.com/app-switch-checkout?token=abc123")
+        runnableSlot.captured.run()
+
+        verify { analyticsClient.sendEvent(POPUP_BRIDGE_APP_LAUNCH_FAILED) }
+        verify {
+            webViewMock.evaluateJavascript(withArg { javascriptString ->
+                assertTrue(javascriptString.contains("Failed to launch app"))
+            }, null)
+        }
     }
 
     @Test

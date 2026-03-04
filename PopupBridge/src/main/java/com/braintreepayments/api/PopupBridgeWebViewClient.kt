@@ -13,6 +13,7 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.RequiresApi
+import com.braintreepayments.api.internal.isPayPalInstalled
 import com.braintreepayments.api.internal.isVenmoInstalled
 
 class PopupBridgeWebViewClient(
@@ -22,6 +23,7 @@ class PopupBridgeWebViewClient(
     override fun onPageFinished(view: WebView?, url: String?) {
         super.onPageFinished(view, url)
         setVenmoInstalled(view, view?.context?.isVenmoInstalled() == true)
+        setPayPalInstalled(view, view?.context?.isPayPalInstalled() == true)
         delegate?.onPageFinished(view, url)
     }
 
@@ -119,6 +121,23 @@ class PopupBridgeWebViewClient(
                 + "} else {"
                 + "  window.addEventListener('load', function () {"
                 + "    setVenmoInstalled();"
+                + "  });"
+                + "}"
+        )
+    }
+
+    private fun setPayPalInstalled(view: WebView?, isPayPalInstalled: Boolean) {
+        runJavaScriptInWebView(view,
+            ""
+                + "function setPayPalInstalled() {"
+                + "    window.popupBridge.isPayPalInstalled = ${isPayPalInstalled};"
+                + "}"
+                + ""
+                + "if (document.readyState === 'complete') {"
+                + "  setPayPalInstalled();"
+                + "} else {"
+                + "  window.addEventListener('load', function () {"
+                + "    setPayPalInstalled();"
                 + "  });"
                 + "}"
         )
