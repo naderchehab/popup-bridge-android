@@ -107,7 +107,7 @@ class PopupBridgeClient @SuppressLint("SetJavaScriptEnabled") internal construct
 
         with(popupBridgeJavascriptInterface) {
             onOpen = { url -> openUrl(url) }
-            onLaunchApp = { url -> launchApp(url) }
+            onLaunchApp = { url -> this@PopupBridgeClient.launchApp(url) }
             onSendMessage = { messageName, data ->
                 messageListener?.onMessageReceived(messageName, data)
             }
@@ -244,10 +244,35 @@ class PopupBridgeClient @SuppressLint("SetJavaScriptEnabled") internal construct
             }
         }
 
+        // Parse fragment parameters (e.g., "#onApprove&PayerID=X&token=Y") into queryItems.
+        // The first segment is the hash identifier; remaining key=value pairs are parameters.
+        var hashIdentifier: String? = returnUri.fragment
+        val fragment = returnUri.fragment
+        if (!fragment.isNullOrEmpty()) {
+            val fragmentParts = fragment.split("&")
+            hashIdentifier = fragmentParts.firstOrNull()
+            for (i in 1 until fragmentParts.size) {
+                val part = fragmentParts[i]
+                val eqIndex = part.indexOf('=')
+                if (eqIndex > 0) {
+                    val key = Uri.decode(part.substring(0, eqIndex))
+                    val value = Uri.decode(part.substring(eqIndex + 1))
+                    try {
+                        queryItems.put(key, value)
+                    } catch (e: JSONException) {
+                        val error = "new Error('Failed to parse fragment params from return URL. " +
+                                e.localizedMessage + "')"
+                        runErrorJavaScript(error)
+                        return
+                    }
+                }
+            }
+        }
+
         try {
             payLoadJson.put("path", returnUri.path)
             payLoadJson.put("queryItems", queryItems)
-            payLoadJson.put("hash", returnUri.fragment)
+            payLoadJson.put("hash", hashIdentifier)
         } catch (ignored: JSONException) {
         }
 
